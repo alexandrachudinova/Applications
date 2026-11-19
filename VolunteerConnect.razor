@@ -1,0 +1,421 @@
+@using Telerik.Blazor
+@using Telerik.Blazor.Components
+
+<TelerikRootComponent>
+    <div class="app-container">
+        <TelerikAppBar ThemeColor="@ThemeConstants.AppBar.ThemeColor.Primary">
+            <AppBarSection>
+                <TelerikSvgIcon Icon="@SvgIcon.Heart" Size="@ThemeConstants.SvgIcon.Size.Large" />
+                <span class="app-title">Волонтёр на связи</span>
+            </AppBarSection>
+            <AppBarSpacer />
+            <AppBarSection>
+                @if (CurrentUser != null)
+                {
+                    <span class="user-badge">
+                        <TelerikSvgIcon Icon="@SvgIcon.User" />
+                        @CurrentUser.FullName (@GetRoleName(CurrentUser.Role))
+                    </span>
+                    <TelerikButton OnClick="@Logout" FillMode="@ThemeConstants.Button.FillMode.Outline" ThemeColor="@ThemeConstants.Button.ThemeColor.Base">
+
+
+                        Выйти
+                    </TelerikButton>
+                }
+            </AppBarSection>
+        </TelerikAppBar>
+
+        <TelerikNotification @ref="@NotificationRef"
+                             HorizontalPosition="@NotificationHorizontalPosition.Right"
+                             VerticalPosition="@NotificationVerticalPosition.Top" />
+
+        @if (CurrentUser == null)
+        {
+            <div class="auth-card">
+                <TelerikCard Width="420px">
+                    <CardHeader>
+                        <CardTitle>Вход в систему «Волонтёр на связи»</CardTitle>
+                        <CardSubTitle>Защищённое облачное соединение (TLS 1.3 / RBAC)</CardSubTitle>
+                    </CardHeader>
+                    <CardBody>
+                        <div class="form-group">
+                            <label>Выберите профиль (Ролевая модель):</label>
+                            <TelerikDropDownList Data="@Users" TextField="DisplayTitle" ValueField="Id" @bind-Value="@SelectedLoginUserId" Width="100%" />
+                        </div>
+                        <div class="form-group">
+                            <label>Пароль (шифруется перед отправкой):</label>
+                            <TelerikTextBox @bind-Value="@PasswordInput" Password="true" Width="100%" />
+                        </div>
+                        <TelerikButton OnClick="@Login" ThemeColor="@ThemeConstants.Button.ThemeColor.Primary" Icon="@SvgIcon.Lock" Class="full-width-btn">
+                            Войти безопасно
+                        </TelerikButton>
+                    </CardBody>
+                </TelerikCard>
+            </div>
+        }
+                else
+        {
+            <div style="margin-top: 16px;">
+               <TelerikTabStrip @bind-ActiveTabIndex="@ActiveTabIndex" PersistTabContent="false">
+
+                    <TabStripTab Title="Запросы и задачи">
+                        <div class="tab-content">
+                            @if (CurrentUser.Role == UserRole.Senior)
+                            {
+                                <TelerikCard Class="mb-3">
+                                    <CardHeader><CardTitle>Создать новый запрос о помощи</CardTitle></CardHeader>
+                                    <CardBody>
+                                        <div class="grid-form">
+                                            <div>
+                                                <label>Категория помощи:</label>
+                                                <TelerikDropDownList Data="@Categories" @bind-Value="@NewRequest.Category" Width="100%" />
+                                            </div>
+                                            <div>
+                                                <label>Адрес:</label>
+                                                <TelerikTextBox @bind-Value="@NewRequest.Address" Width="100%" />
+                                            </div>
+                                            <div class="full-col">
+                                                <label>Описание задачи:</label>
+                                                <TelerikTextArea @bind-Value="@NewRequest.Description" Rows="2" Width="100%" />
+                                            </div>
+                                        </div>
+                                        <TelerikButton OnClick="@CreateRequest" ThemeColor="@ThemeConstants.Button.ThemeColor.Success" Icon="@SvgIcon.Plus" Class="mt-2">
+                                            Опубликовать запрос
+                                        </TelerikButton>
+                                    </CardBody>
+                                </TelerikCard>
+                            }
+
+                            <h4>Активные и завершённые запросы</h4>
+                            <TelerikGrid Data="@HelpRequests" Pageable="true" PageSize="5" Sortable="true">
+                                <GridColumns>
+                                    <GridColumn Field="@nameof(HelpRequest.Category)" Title="Категория" Width="150px" />
+                                    <GridColumn Field="@nameof(HelpRequest.Description)" Title="Описание" />
+                                    <GridColumn Field="@nameof(HelpRequest.SeniorName)" Title="Заявитель" Width="160px" />
+                                    <GridColumn Field="@nameof(HelpRequest.VolunteerName)" Title="Волонтёр" Width="160px" />
+                                    <GridColumn Field="@nameof(HelpRequest.Status)" Title="Статус" Width="140px">
+                                        <Template>
+                                            @{ var req = (HelpRequest)context; }
+                                            <TelerikBadge ThemeColor="@GetStatusColor(req.Status)">@GetStatusText(req.Status)</TelerikBadge>
+                                        </Template>
+                                    </GridColumn>
+                                    <GridColumn Title="Действия" Width="250px">
+                                        <Template>
+                                            @{ var req = (HelpRequest)context; }
+                                            <div class="action-buttons">
+                                                @if (CurrentUser.Role == UserRole.Volunteer && req.Status == RequestStatus.Open)
+                                                {
+                                                    <TelerikButton OnClick="@(() => AcceptRequest(req))" ThemeColor="@ThemeConstants.Button.ThemeColor.Primary" Size="@ThemeConstants.Button.Size.Small">Взять задачу</TelerikButton>
+                                                }
+                                                @if (CurrentUser.Role == UserRole.Volunteer && req.Status == RequestStatus.InProgress && req.VolunteerId == CurrentUser.Id)
+                                                {
+                                                    <TelerikButton OnClick="@(() => CompleteRequest(req))" ThemeColor="@ThemeConstants.Button.ThemeColor.Success" Size="@ThemeConstants.Button.Size.Small">Завершить</TelerikButton>
+                                                }
+                                                <TelerikButton OnClick="@(() => OpenChatForRequest(req))" Icon="@SvgIcon.Comment" Size="@ThemeConstants.Button.Size.Small">Чат</TelerikButton>
+                                                @if (CurrentUser.Role == UserRole.Senior && req.Status == RequestStatus.Completed && !req.IsRated)
+                                                {
+                                                    <TelerikButton OnClick="@(() => OpenRatingModal(req))" ThemeColor="@ThemeConstants.Button.ThemeColor.Warning" Icon="@SvgIcon.Star" Size="@ThemeConstants.Button.Size.Small">Оценить</TelerikButton>
+                                                }
+                                            </div>
+                                        </Template>
+                                    </GridColumn>
+                                </GridColumns>
+                            </TelerikGrid>
+                        </div>
+                    </TabStripTab>
+
+                   <TabStripTab Title="Интерактивная карта">
+    <div class="tab-content">
+        <h4>Геолокация активных запросов</h4>
+        <TelerikMap Center="@MapCenter" Zoom="12" Height="380px">
+            <MapLayers>
+                <MapLayer Type="@MapLayersType.Tile"
+                          UrlTemplate="https://openstreetmap.org zoom #/#= x #/#= y #.png"
+                          Attribution="OpenStreetMap" />
+                <MapLayer Type="@MapLayersType.Marker"
+                          Data="@HelpRequests"
+                          LocationField="Location"
+                          TitleField="MapTooltip" />
+            </MapLayers>
+        </TelerikMap>
+    </div>
+</TabStripTab>
+
+
+                    <TabStripTab Title="Сообщения (Чат)">
+                        <div class="tab-content">
+                            @if (SelectedChatRequest == null)
+                            {
+                                <p>Выберите запрос на первой вкладке и нажмите «Чат».</p>
+                            }
+                            else
+                            {
+                                <TelerikCard>
+                                    <CardHeader><CardTitle>Чат: @SelectedChatRequest.Category (@SelectedChatRequest.Address)</CardTitle></CardHeader>
+                                    <CardBody>
+                                        <div class="chat-box">
+                                            @foreach (var msg in SelectedChatRequest.Messages)
+                                            {
+                                                <div class="chat-msg @(msg.SenderName == CurrentUser.FullName ? "msg-own" : "msg-other")">
+                                                    <strong>@msg.SenderName</strong> <small>@msg.Timestamp.ToString("HH:mm")</small>
+                                                    <div>@msg.Text</div>
+                                                </div>
+                                            }
+                                        </div>
+                                        <div class="chat-input-row">
+                                            <TelerikTextBox @bind-Value="@NewMessageText" Placeholder="Введите сообщение..." Width="100%" />
+                                            <TelerikButton OnClick="@SendMessage" ThemeColor="@ThemeConstants.Button.ThemeColor.Primary" Icon="@SvgIcon.PaperPlane">Отправить</TelerikButton>
+                                        </div>
+                                    </CardBody>
+                                </TelerikCard>
+                            }
+                        </div>
+                    </TabStripTab>
+                    <TabStripTab Title="Профили и рейтинг">
+                        <div class="tab-content">
+                            <div class="profiles-grid">
+                                <TelerikCard>
+                                    <CardHeader><CardTitle>Мой профиль</CardTitle></CardHeader>
+                                    <CardBody>
+                                        <p><strong>ФИО:</strong> @CurrentUser.FullName</p>
+                                        <p><strong>Роль:</strong> @GetRoleName(CurrentUser.Role)</p>
+                                        <p><strong>Телефон:</strong> @CurrentUser.Phone</p>
+                                        <p><strong>Район:</strong> @CurrentUser.District</p>
+                                        @if (CurrentUser.Role == UserRole.Volunteer)
+                                        {
+                                            <p><strong>Навыки:</strong> @CurrentUser.Skills</p>
+                                            <p><strong>Рейтинг:</strong> @CurrentUser.Rating.ToString("0.0") / 5.0</p>
+                                        }
+                                    </CardBody>
+                                </TelerikCard>
+
+                                <TelerikCard>
+                                    <CardHeader><CardTitle>Рейтинг волонтёров</CardTitle></CardHeader>
+                                    <CardBody>
+                                        @foreach (var vol in Users.Where(u => u.Role == UserRole.Volunteer))
+                                        {
+                                            <div class="volunteer-rating-item">
+                                                <div>
+                                                    <strong>@vol.FullName</strong> — @vol.District
+                                                    <div class="skills-text">@vol.Skills</div>
+                                                </div>
+                                                <TelerikRating Value="@vol.Rating" ReadOnly="true" />
+                                            </div>
+                                        }
+                                    </CardBody>
+                                </TelerikCard>
+                            </div>
+                        </div>
+                    </TabStripTab>
+                </TelerikTabStrip>
+            </div>
+        }
+
+        <TelerikDialog @bind-Visible="@IsRatingDialogVisible" Width="400px" Title="Оценка работы волонтёра">
+            <DialogContent>
+                @if (RequestToRate != null)
+                {
+                    <p>Оцените помощь волонтёра <strong>@RequestToRate.VolunteerName</strong> по задаче «@RequestToRate.Category»:</p>
+                    <TelerikRating @bind-Value="@RatingScore" />
+                    <div class="mt-2">
+                        <label>Комментарий:</label>
+                        <TelerikTextArea @bind-Value="@RatingComment" Rows="3" Width="100%" />
+                    </div>
+                }
+            </DialogContent>
+            <DialogButtons>
+                <TelerikButton OnClick="@SubmitRating" ThemeColor="@ThemeConstants.Button.ThemeColor.Primary">Отправить отзыв</TelerikButton>
+                <TelerikButton OnClick="@(() => IsRatingDialogVisible = false)">Отмена</TelerikButton>
+            </DialogButtons>
+        </TelerikDialog>
+    </div>
+</TelerikRootComponent>
+
+
+
+<style>
+    .app-container { font-family: system-ui, -apple-system, sans-serif; max-width: 1100px; margin: 0 auto; }
+    .app-title { font-size: 1.2rem; font-weight: 600; margin-left: 8px; }
+    .user-badge { display: flex; align-items: center; gap: 6px; margin-right: 12px; font-weight: 500; }
+    .auth-card { display: flex; justify-content: center; margin-top: 50px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; margin-bottom: 4px; font-weight: 500; }
+    .full-width-btn { width: 100%; margin-top: 8px; }
+    .tab-content { padding: 16px 0; }
+    .grid-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .full-col { grid-column: span 2; }
+    .mb-3 { margin-bottom: 16px; }
+    .mt-2 { margin-top: 10px; }
+    .action-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+    .chat-box { height: 260px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; margin-bottom: 12px; background: #fafafa; }
+    .chat-msg { margin-bottom: 10px; padding: 8px 12px; border-radius: 8px; max-width: 75%; }
+    .msg-own { background: #e3f2fd; margin-left: auto; }
+    .msg-other { background: #ffffff; border: 1px solid #e0e0e0; }
+    .chat-input-row { display: flex; gap: 8px; }
+    .profiles-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .volunteer-rating-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
+    .skills-text { font-size: 0.85rem; color: #666; }
+</style>
+
+@code {
+    private TelerikNotification NotificationRef { get; set; }
+    private int ActiveTabIndex { get; set; } = 0;
+    private UserProfile CurrentUser { get; set; }
+    private int SelectedLoginUserId { get; set; } = 1;
+    private string PasswordInput { get; set; } = "********";
+
+    private double[] MapCenter { get; set; } = new double[] { 59.9343, 30.3351 };
+    private string MapTileUrl { get; set; } = "https://#= subdomain #.tile.openstreetmap.org/#= zoom #/#= x #/#= y #.png";
+    private string[] MapSubdomains { get; set; } = new string[] { "a", "b", "c" };
+
+    private HelpRequest NewRequest { get; set; } = new HelpRequest { Category = "Купить продукты", Address = "Невский пр., д. 45" };
+    private List<string> Categories = new List<string> { "Купить продукты", "Получить лекарства", "Сопровождение в медучреждение", "Помощь по дому", "Общение и прогулка" };
+
+    private HelpRequest SelectedChatRequest { get; set; }
+    private string NewMessageText { get; set; }
+    private bool IsRatingDialogVisible { get; set; }
+    private HelpRequest RequestToRate { get; set; }
+    private double RatingScore { get; set; } = 5;
+    private string RatingComment { get; set; }
+
+    private List<UserProfile> Users = new List<UserProfile>
+    {
+        new UserProfile { Id = 1, FullName = "Иванова Мария Петровна", Role = UserRole.Senior, Phone = "+7 (921) 111-22-33", District = "Центральный район" },
+        new UserProfile { Id = 2, FullName = "Смирнов Алексей", Role = UserRole.Volunteer, Phone = "+7 (911) 444-55-66", District = "Центральный район", Skills = "Автомобиль, покупка лекарств", Rating = 4.9 },
+        new UserProfile { Id = 3, FullName = "Кузнецова Елена", Role = UserRole.Volunteer, Phone = "+7 (905) 777-88-99", District = "Невский район", Skills = "Сопровождение в поликлинику, уборка", Rating = 4.7 },
+        new UserProfile { Id = 4, FullName = "Администратор Фонда", Role = UserRole.Coordinator, Phone = "+7 (812) 000-00-00", District = "Весь город" }
+    };
+
+    private List<HelpRequest> HelpRequests = new List<HelpRequest>
+    {
+        new HelpRequest { Id = 101, Category = "Купить продукты", Description = "Молоко, хлеб, яблоки и крупа гречневая.", Address = "Невский пр., 28", Location = new double[] { 59.9356, 30.3260 }, SeniorName = "Иванова Мария Петровна", Status = RequestStatus.Open, Messages = new List<ChatMessage> { new ChatMessage { SenderName = "Иванова Мария Петровна", Text = "Здравствуйте! Буду ждать звонка в домофон.", Timestamp = DateTime.Now.AddMinutes(-15) } } },
+        new HelpRequest { Id = 102, Category = "Получить лекарства", Description = "Забрать льготный рецепт в аптеке №12.", Address = "ул. Восстания, 14", Location = new double[] { 59.9332, 30.3601 }, SeniorName = "Иванова Мария Петровна", VolunteerId = 2, VolunteerName = "Смирнов Алексей", Status = RequestStatus.InProgress, Messages = new List<ChatMessage> { new ChatMessage { SenderName = "Смирнов Алексей", Text = "Добрый день! Я уже в аптеке, скоро буду у вас.", Timestamp = DateTime.Now.AddMinutes(-5) } } }
+    };
+
+    private void Login()
+    {
+        CurrentUser = Users.FirstOrDefault(u => u.Id == SelectedLoginUserId);
+        SelectedChatRequest = HelpRequests.FirstOrDefault();
+        ShowPush("Добро пожаловать, " + CurrentUser.FullName + "! Облачная синхронизация активна.", ThemeConstants.Notification.ThemeColor.Info);
+    }
+
+    private void Logout() { CurrentUser = null; ActiveTabIndex = 0; }
+
+    private void CreateRequest()
+    {
+        if (string.IsNullOrWhiteSpace(NewRequest.Description)) return;
+        var rnd = new Random();
+        var created = new HelpRequest
+        {
+            Id = HelpRequests.Max(r => r.Id) + 1,
+            Category = NewRequest.Category,
+            Description = NewRequest.Description,
+            Address = NewRequest.Address,
+            Location = new double[] { 59.93 + (rnd.NextDouble() * 0.02), 30.33 + (rnd.NextDouble() * 0.03) },
+            SeniorName = CurrentUser.FullName,
+            Status = RequestStatus.Open,
+            Messages = new List<ChatMessage>()
+        };
+        HelpRequests.Insert(0, created);
+        NewRequest.Description = string.Empty;
+        ShowPush("Запрос создан и разослан ближайшим волонтёрам!", ThemeConstants.Notification.ThemeColor.Success);
+    }
+
+    private void AcceptRequest(HelpRequest req)
+    {
+        req.Status = RequestStatus.InProgress;
+        req.VolunteerId = CurrentUser.Id;
+        req.VolunteerName = CurrentUser.FullName;
+        ShowPush("Вы назначены на задачу «" + req.Category + "». Заявитель получил уведомление.", ThemeConstants.Notification.ThemeColor.Info);
+    }
+
+    private void CompleteRequest(HelpRequest req)
+    {
+        req.Status = RequestStatus.Completed;
+        ShowPush("Задача «" + req.Category + "» успешно завершена!", ThemeConstants.Notification.ThemeColor.Success);
+    }
+
+    private void OpenChatForRequest(HelpRequest req) { SelectedChatRequest = req; ActiveTabIndex = 2; }
+
+    private void SendMessage()
+    {
+        if (SelectedChatRequest == null || string.IsNullOrWhiteSpace(NewMessageText)) return;
+        SelectedChatRequest.Messages.Add(new ChatMessage { SenderName = CurrentUser.FullName, Text = NewMessageText, Timestamp = DateTime.Now });
+        NewMessageText = string.Empty;
+    }
+
+    private void OpenRatingModal(HelpRequest req) { RequestToRate = req; RatingScore = 5; RatingComment = string.Empty; IsRatingDialogVisible = true; }
+
+    private void SubmitRating()
+    {
+        if (RequestToRate != null)
+        {
+            RequestToRate.IsRated = true;
+            var volunteer = Users.FirstOrDefault(u => u.Id == RequestToRate.VolunteerId);
+            if (volunteer != null) volunteer.Rating = Math.Round((volunteer.Rating + RatingScore) / 2.0, 1);
+            ShowPush("Спасибо! Ваша оценка сохранена в профиле волонтёра.", ThemeConstants.Notification.ThemeColor.Success);
+        }
+        IsRatingDialogVisible = false;
+    }
+
+    private void ShowPush(string text, string themeColor) => NotificationRef?.Show(new NotificationModel { Text = text, ThemeColor = themeColor, CloseAfter = 4000 });
+
+    private string GetRoleName(UserRole role)
+    {
+        if (role == UserRole.Senior) return "Пожилой человек";
+        if (role == UserRole.Volunteer) return "Волонтёр";
+        return "Координатор";
+    }
+
+    private string GetStatusText(RequestStatus status)
+    {
+        if (status == RequestStatus.Open) return "Открыт";
+        if (status == RequestStatus.InProgress) return "В работе";
+        return "Выполнен";
+    }
+
+    private string GetStatusColor(RequestStatus status)
+    {
+        if (status == RequestStatus.Open) return ThemeConstants.Badge.ThemeColor.Warning;
+        if (status == RequestStatus.InProgress) return ThemeConstants.Badge.ThemeColor.Info;
+        return ThemeConstants.Badge.ThemeColor.Success;
+    }
+
+    public enum UserRole { Senior, Volunteer, Coordinator }
+    public enum RequestStatus { Open, InProgress, Completed }
+
+    public class UserProfile
+    {
+        public int Id { get; set; }
+        public string FullName { get; set; }
+        public UserRole Role { get; set; }
+        public string Phone { get; set; }
+        public string District { get; set; }
+        public string Skills { get; set; }
+        public double Rating { get; set; }
+        public string DisplayTitle => FullName + " (" + (Role == UserRole.Senior ? "Пожилой человек" : Role == UserRole.Volunteer ? "Волонтёр" : "Координатор") + ")";
+    }
+
+    public class HelpRequest
+    {
+        public int Id { get; set; }
+        public string Category { get; set; }
+        public string Description { get; set; }
+        public string Address { get; set; }
+        public double[] Location { get; set; }
+        public string SeniorName { get; set; }
+        public int? VolunteerId { get; set; }
+        public string VolunteerName { get; set; } = "Ожидает назначения";
+        public RequestStatus Status { get; set; }
+        public bool IsRated { get; set; }
+        public string MapTooltip => Category + ": " + Address + " (" + SeniorName + ")";
+        public List<ChatMessage> Messages { get; set; } = new();
+    }
+
+    public class ChatMessage
+    {
+        public string SenderName { get; set; }
+        public string Text { get; set; }
+        public DateTime Timestamp { get; set; }
+    }
+}
