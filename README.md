@@ -25,7 +25,7 @@
 
 ---
 
-## 🛠 Технологический стек
+## Технологический стек
 
 - **Платформа:** .NET / ASP.NET Core Blazor (Razor Components)
 - **UI-компоненты:** Telerik UI for Blazor or Microsoft Visual Studio (`TelerikGrid`, `TelerikCard`, `TelerikButton`, `TelerikDialog`, `TelerikNotification`, `TelerikTextBox`)
@@ -76,7 +76,7 @@ Timurovets/
 
 ### Вариант 2. Быстрый предпросмотр UI в Telerik REPL
 Код интерфейса из `Pages/Index.razor` можно запустить без локальной установки в онлайн-песочнице [Telerik REPL for Blazor](https://telerik.com "Telerik REPL for Blazor"), вставив содержимое компонента в файл `__Main.razor`.
-
+https://blazorrepl.telerik.com/wqlvPjFj20EiugTp18 
 ---
 
 ## Тестирование и контроль качества
