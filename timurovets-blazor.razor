@@ -1,0 +1,228 @@
+@using Telerik.Blazor
+@using Telerik.Blazor.Components
+@using Telerik.SvgIcons
+
+<TelerikNotification @ref="@NotificationRef"
+                     HorizontalPosition="@NotificationHorizontalPosition.Center"
+                     VerticalPosition="@NotificationVerticalPosition.Top" />
+
+<div class="accessible-container @(IsHighContrast ? "high-contrast-mode" : "")">
+    <header class="top-bar">
+        <div>
+            <h1 class="app-title">ИС «Тимуровец»</h1>
+            <span class="subtitle">Доступный помощник заботы и здоровья</span>
+        </div>
+        <div class="accessibility-controls">
+            <TelerikButton OnClick="@ToggleContrast" ThemeColor="@ThemeConstants.Button.ThemeColor.Inverse" Size="@ThemeConstants.Button.Size.Large" Icon="@SvgIcon.BrightnessContrast">
+                @(IsHighContrast ? "Обычный режим" : "Высокий контраст")
+            </TelerikButton>
+            <TelerikButton OnClick="@SimulateVoiceCommand" ThemeColor="@ThemeConstants.Button.ThemeColor.Info" Size="@ThemeConstants.Button.Size.Large" Icon="@SvgIcon.Microphone">
+                Голосовой помощник
+            </TelerikButton>
+            <TelerikButton OnClick="@TriggerSOS" ThemeColor="@ThemeConstants.Button.ThemeColor.Error" Size="@ThemeConstants.Button.Size.Large" Icon="@SvgIcon.ExclamationCircle">
+                ВЫЗОВ SOS
+            </TelerikButton>
+        </div>
+    </header>
+
+    @* Крупное доступное меню навигации *@
+    <nav class="nav-buttons">
+        <TelerikButton OnClick="@(() => ActiveSection = 0)"
+                       ThemeColor="@(ActiveSection == 0 ? ThemeConstants.Button.ThemeColor.Primary : ThemeConstants.Button.ThemeColor.Base)"
+                       Size="@ThemeConstants.Button.Size.Large"
+                       Icon="@SvgIcon.Clock">
+            1. Лекарства
+        </TelerikButton>
+        <TelerikButton OnClick="@(() => ActiveSection = 1)"
+                       ThemeColor="@(ActiveSection == 1 ? ThemeConstants.Button.ThemeColor.Primary : ThemeConstants.Button.ThemeColor.Base)"
+                       Size="@ThemeConstants.Button.Size.Large"
+                       Icon="@SvgIcon.Calendar">
+            2. Визиты к врачу
+        </TelerikButton>
+        <TelerikButton OnClick="@(() => ActiveSection = 2)"
+                       ThemeColor="@(ActiveSection == 2 ? ThemeConstants.Button.ThemeColor.Primary : ThemeConstants.Button.ThemeColor.Base)"
+                       Size="@ThemeConstants.Button.Size.Large"
+                       Icon="@SvgIcon.User">
+            3. Семья и помощь
+        </TelerikButton>
+    </nav>
+
+    @* РАЗДЕЛ 1: ЛЕКАРСТВА *@
+    @if (ActiveSection == 0)
+    {
+        <div class="section-box">
+            <div class="section-header">
+                <h2>Расписание приёма лекарств</h2>
+                <TelerikButton OnClick="@(() => ShowAddMedDialog = true)" ThemeColor="@ThemeConstants.Button.ThemeColor.Primary" Size="@ThemeConstants.Button.Size.Large" Icon="@SvgIcon.Plus">
+                    Добавить лекарство
+                </TelerikButton>
+            </div>
+            <TelerikGrid Data="@Medications" Class="large-grid">
+                <GridColumns>
+                    <GridColumn Field="@nameof(MedicationReminder.ScheduledTime)" Title="Время" Width="120px">
+                        <Template>
+                            @{ var item = (MedicationReminder)context; }
+                            <strong>@item.ScheduledTime.ToString(@"hh\:mm")</strong>
+                        </Template>
+                    </GridColumn>
+                    <GridColumn Field="@nameof(MedicationReminder.MedicationName)" Title="Препарат" />
+                    <GridColumn Field="@nameof(MedicationReminder.Dosage)" Title="Дозировка" Width="170px" />
+                    <GridColumn Title="Действие" Width="240px">
+                        <Template>
+                            @{ var item = (MedicationReminder)context; }
+                            @if (!item.IsTaken)
+                            {
+                                <TelerikButton OnClick="@(() => MarkAsTaken(item))" ThemeColor="@ThemeConstants.Button.ThemeColor.Success" Size="@ThemeConstants.Button.Size.Large">
+                                    Отметить приём
+                                </TelerikButton>
+                            }
+                            else
+                            {
+                                <span class="status-done">✔ Принято</span>
+                            }
+                        </Template>
+                    </GridColumn>
+                </GridColumns>
+            </TelerikGrid>
+        </div>
+    }
+
+    @* РАЗДЕЛ 2: ВИЗИТЫ К ВРАЧУ *@
+    @if (ActiveSection == 1)
+    {
+        <div class="section-box">
+            <h2>Ближайшие записи ко врачу</h2>
+            <div class="cards-grid">
+                @foreach (var app in Appointments)
+                {
+                    <TelerikCard Class="accessible-card">
+                        <CardHeader><CardTitle>@app.DoctorSpecialty</CardTitle></CardHeader>
+                        <CardBody>
+                            <p><strong>Дата:</strong> @app.AppointmentDate.ToString("dd.MM.yyyy в HH:mm")</p>
+                            <p><strong>Адрес:</strong> @app.ClinicAddress</p>
+                        </CardBody>
+                        <CardActions>
+                            <TelerikButton ThemeColor="@ThemeConstants.Button.ThemeColor.Primary" Size="@ThemeConstants.Button.Size.Large" OnClick="@(() => NotifyUser($"Напоминание о визите ({app.DoctorSpecialty}) отправлено близким"))">
+                                Напомнить семье
+                            </TelerikButton>
+                        </CardActions>
+                    </TelerikCard>
+                }
+            </div>
+        </div>
+    }
+
+    @* РАЗДЕЛ 3: СЕМЬЯ И ПОМОЩЬ *@
+    @if (ActiveSection == 2)
+    {
+        <div class="section-box">
+            <h2>Экстренные контакты и связь</h2>
+            <div class="cards-grid">
+                @foreach (var contact in Contacts)
+                {
+                    <TelerikCard Class="accessible-card">
+                        <CardHeader><CardTitle>@contact.FullName (@contact.Relation)</CardTitle></CardHeader>
+                        <CardBody><p class="phone-text">@contact.PhoneNumber</p></CardBody>
+                        <CardActions>
+                            <TelerikButton ThemeColor="@ThemeConstants.Button.ThemeColor.Success" Size="@ThemeConstants.Button.Size.Large" Icon="@SvgIcon.VideoExternal" OnClick="@(() => NotifyUser($"Идёт звонок: {contact.FullName}..."))">
+                                Позвонить
+                            </TelerikButton>
+                        </CardActions>
+                    </TelerikCard>
+                }
+            </div>
+        </div>
+    }
+
+    @* ОКНО ДОБАВЛЕНИЯ ЛЕКАРСТВА *@
+    <TelerikDialog @bind-Visible="@ShowAddMedDialog" Title="Новое напоминание" Width="450px">
+        <DialogContent>
+            <div class="dialog-form">
+                <label>Название препарата:</label>
+                <TelerikTextBox @bind-Value="@NewMedName" Size="@ThemeConstants.TextBox.Size.Large" />
+                <label>Дозировка:</label>
+                <TelerikTextBox @bind-Value="@NewMedDosage" Size="@ThemeConstants.TextBox.Size.Large" />
+            </div>
+        </DialogContent>
+        <DialogButtons>
+            <TelerikButton OnClick="@AddMedication" ThemeColor="@ThemeConstants.Button.ThemeColor.Primary" Size="@ThemeConstants.Button.Size.Large">Сохранить</TelerikButton>
+            <TelerikButton OnClick="@(() => ShowAddMedDialog = false)" Size="@ThemeConstants.Button.Size.Large">Отмена</TelerikButton>
+        </DialogButtons>
+    </TelerikDialog>
+</div>
+
+<style>
+    .accessible-container { font-family: 'Segoe UI', Arial, sans-serif; font-size: 20px; padding: 20px; background-color: #f8f9fa; color: #111111; min-height: 100vh; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding-bottom: 16px; border-bottom: 3px solid #cccccc; margin-bottom: 20px; }
+    .app-title { font-size: 30px; font-weight: 700; margin: 0; }
+    .subtitle { font-size: 16px; opacity: 0.85; }
+    .accessibility-controls, .nav-buttons, .section-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+    .nav-buttons { justify-content: flex-start; }
+    .section-box { background: #ffffff; padding: 20px; border-radius: 8px; border: 2px solid #dddddd; }
+    .large-grid { font-size: 19px !important; }
+    .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 16px; }
+    .accessible-card { border: 2px solid #333333 !important; padding: 10px; }
+    .phone-text { font-size: 24px; font-weight: bold; margin: 8px 0; }
+    .status-done { color: #198754; font-weight: bold; font-size: 20px; }
+    .dialog-form { display: flex; flex-direction: column; gap: 12px; font-size: 18px; }
+    .high-contrast-mode, .high-contrast-mode .section-box, .high-contrast-mode .accessible-card, .high-contrast-mode .k-grid, .high-contrast-mode .k-grid td, .high-contrast-mode .k-grid th { background-color: #000000 !important; color: #ffff00 !important; border-color: #ffff00 !important; }
+    .high-contrast-mode .status-done { color: #00ff00 !important; }
+</style>
+
+@code {
+    private TelerikNotification NotificationRef { get; set; }
+    private int ActiveSection { get; set; } = 0;
+    private bool IsHighContrast { get; set; } = false;
+    private bool ShowAddMedDialog { get; set; } = false;
+    private string NewMedName { get; set; } = string.Empty;
+    private string NewMedDosage { get; set; } = string.Empty;
+
+    private List<MedicationReminder> Medications = new MedicationReminder[]
+    {
+        new() { Id = 1, ScheduledTime = new TimeSpan(9, 0, 0), MedicationName = "Кардиомагнил", Dosage = "1 таблетка", IsTaken = true },
+        new() { Id = 2, ScheduledTime = new TimeSpan(14, 0, 0), MedicationName = "Витамин D3", Dosage = "2 капли", IsTaken = false },
+        new() { Id = 3, ScheduledTime = new TimeSpan(20, 0, 0), MedicationName = "Эналаприл", Dosage = "1 таблетка", IsTaken = false }
+    }.ToList();
+
+    private DoctorAppointment[] Appointments = new DoctorAppointment[]
+    {
+        new() { Id = 1, DoctorSpecialty = "Терапевт (Иванова А.П.)", ClinicAddress = "Поликлиника №4, каб. 210", AppointmentDate = DateTime.Now.AddDays(1).Date.AddHours(10).AddMinutes(30) },
+        new() { Id = 2, DoctorSpecialty = "Кардиолог (Петров В.С.)", ClinicAddress = "Городской медцентр, каб. 15", AppointmentDate = DateTime.Now.AddDays(4).Date.AddHours(12) }
+    };
+
+    private EmergencyContact[] Contacts = new EmergencyContact[]
+    {
+        new() { Id = 1, FullName = "Елена Смирнова", Relation = "Дочь", PhoneNumber = "+7 (999) 123-45-67" },
+        new() { Id = 2, FullName = "Алексей Волков", Relation = "Социальный работник", PhoneNumber = "+7 (999) 765-43-21" },
+        new() { Id = 3, FullName = "Скорая помощь", Relation = "Экстренная служба", PhoneNumber = "103" }
+    };
+
+private void ToggleContrast() => IsHighContrast = !IsHighContrast;
+private void MarkAsTaken(MedicationReminder item)
+{
+item.IsTaken = true;
+NotifyUser($"Отлично! Приём препарата «{item.MedicationName}» зафиксирован.");
+}
+private void AddMedication()
+{
+if (!string.IsNullOrWhiteSpace(NewMedName))
+{
+Medications.Add(new MedicationReminder { Id = Medications.Count + 1, ScheduledTime = DateTime.Now.TimeOfDay, MedicationName = NewMedName, Dosage = string.IsNullOrWhiteSpace(NewMedDosage) ? "По назначению" : NewMedDosage, IsTaken = false });
+NewMedName = string.Empty;
+NewMedDosage = string.Empty;
+ShowAddMedDialog = false;
+NotifyUser("Новое напоминание добавлено.");
+}
+}
+private void TriggerSOS() => NotificationRef?.Show(new NotificationModel { Text = "ТРЕВОГА! Сигнал SOS и координаты отправлены близким!", ThemeColor = ThemeConstants.Notification.ThemeColor.Error, CloseAfter = 0 });
+private void SimulateVoiceCommand()
+{
+ActiveSection = (ActiveSection + 1) % 3;
+string tabName = ActiveSection switch { 0 => "Лекарства", 1 => "Визиты к врачу", _ => "Семья и помощь" };
+NotifyUser($"Голосовая команда: открыт раздел «{tabName}»");
+}
+private void NotifyUser(string message) => NotificationRef?.Show(new NotificationModel { Text = message, ThemeColor = ThemeConstants.Notification.ThemeColor.Success, CloseAfter = 4000 });
+public class MedicationReminder { public int Id { get; set; } public string MedicationName { get; set; } = ""; public string Dosage { get; set; } = ""; public TimeSpan ScheduledTime { get; set; } public bool IsTaken { get; set; } }
+public class DoctorAppointment { public int Id { get; set; } public string DoctorSpecialty { get; set; } = ""; public string ClinicAddress { get; set; } = ""; public DateTime AppointmentDate { get; set; } }
+public class EmergencyContact { public int Id { get; set; } public string FullName { get; set; } = ""; public string Relation { get; set; } = ""; public string PhoneNumber { get; set; } = ""; }
+}
